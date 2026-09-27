@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reconnect</title>
+<link rel="icon" href="data:,">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Reconnect">
+<meta name="theme-color" content="#0E1A2B">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --bg:#0E1A2B; --surface:#132238; --surface2:#182B45; --border:#25395A;
+  --text:#EDEEF2; --dim:#93A1B8; --accent:#C9A24B; --accent-dim:#8B7433;
+  --danger:#C4694A; --ok:#5B9B7A;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){ --bg:#0E1A2B; --surface:#132238; --text:#EDEEF2; --dim:#93A1B8; }
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px); height:100%;}
+*{box-sizing:border-box;}
+body{
+  margin:0; min-height:100%; background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:480px; margin:0 auto; padding:0 20px 100px;}
+header{padding:28px 4px 18px;}
+.word{font-family:Georgia,"Times New Roman",serif; font-size:28px; letter-spacing:0.2px; margin:0;}
+.word span{color:var(--accent);}
+.tag{color:var(--dim); font-size:14px; margin:4px 0 0;}
+nav{
+  position:sticky; top:env(safe-area-inset-top,0px); z-index:10;
+  display:flex; gap:6px; background:var(--bg); padding:10px 4px 14px; margin:0 -4px;
+}
+nav button{
+  flex:1; padding:10px 8px; border-radius:10px; border:1px solid var(--border);
+  background:var(--surface); color:var(--dim); font-size:13.5px; cursor:pointer;
+}
+nav button.active{background:var(--accent); color:#1A1200; border-color:var(--accent); font-weight:600;}
+.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:14px;
+  padding:18px; margin-bottom:14px;
+}
+.view{display:none;} .view.active{display:block;}
+label{display:block; font-size:12.5px; color:var(--dim); margin:14px 0 6px;}
+label:first-child{margin-top:0;}
+input,textarea,select{
+  width:100%; padding:11px 12px; border-radius:9px; border:1px solid var(--border);
+  background:var(--surface2); color:var(--text); font-size:15px; font-family:inherit;
+}
+textarea{resize:vertical; min-height:64px;}
+.btn{
+  display:inline-block; width:100%; padding:12px; border-radius:9px; border:none;
+  background:var(--accent); color:#1A1200; font-weight:600; font-size:15px; cursor:pointer;
+  margin-top:16px;
+}
+.btn.secondary{background:var(--surface2); color:var(--text); border:1px solid var(--border);}
+.btn.ghost{background:transparent; color:var(--dim); border:1px dashed var(--border); font-weight:400; font-size:13px;}
+#qrbox{display:flex; justify-content:center; padding:18px 0 4px; background:#fff; border-radius:10px; margin-top:16px;}
+.hint{color:var(--dim); font-size:12.5px; line-height:1.5; margin-top:10px;}
+.conn{border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:10px; background:var(--surface2);}
+.conn-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+.conn-name{font-weight:600; font-size:15.5px;}
+.conn-co{color:var(--dim); font-size:13px; margin-top:2px;}
+.pill{font-size:11.5px; padding:3px 9px; border-radius:20px; white-space:nowrap; border:1px solid var(--border);}
+.pill.due{background:rgba(196,105,74,0.18); color:var(--danger); border-color:transparent;}
+.pill.soon{background:rgba(201,162,75,0.15); color:var(--accent); border-color:transparent;}
+.pill.later{color:var(--dim);}
+.conn-reason{margin-top:10px; font-size:13.5px; color:var(--text); opacity:0.9;}
+.conn-actions{display:flex; gap:8px; margin-top:12px;}
+.conn-actions button{flex:1; padding:8px; font-size:12.5px; border-radius:7px; border:1px solid var(--border); background:transparent; color:var(--dim); cursor:pointer;}
+.empty{color:var(--dim); font-size:14px; text-align:center; padding:30px 10px;}
+.draft{white-space:pre-wrap; font-size:13.5px; line-height:1.5; background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:12px; margin-top:10px;}
+.toast{
+  position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%);
+  background:var(--accent); color:#1A1200; padding:10px 18px; border-radius:30px; font-size:13.5px;
+  font-weight:600; opacity:0; pointer-events:none; transition:opacity .25s ease; z-index:50;
+}
+.toast.show{opacity:1;}
+.simbar{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px;}
+.simbar .hint{margin:0;}
+.section-label{font-size:12px; color:var(--dim); text-transform:none; margin:22px 0 8px; padding-top:4px; border-top:1px solid var(--border);}
+.section-label:first-child{border-top:none; margin-top:0;}
+.pill.done{color:var(--ok);}
+.conn.done{opacity:0.55;}
+.conn-actions button{flex:1 1 auto;}
+.conn-actions button.primary{background:var(--accent); color:#1A1200; border-color:var(--accent); font-weight:600;}
+.edit-row{display:flex; gap:8px;}
+.edit-row > *{flex:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="word">Reconnect<span>.</span></p>
+    <p class="tag">Meet someone worth following up with. Don't forget why.</p>
+  </header>
+
+  <nav>
+    <button data-view="card" class="active">My Card</button>
+    <button data-view="add">Add</button>
+    <button data-view="list">Connections</button>
+  </nav>
+
+  <section id="view-card" class="view active">
+    <div class="card">
+      <label>Your name</label>
+      <input id="p-name" placeholder="Karthik Reddy">
+      <label>Company / school</label>
+      <input id="p-company" placeholder="CCNY — Computer Science">
+      <label>What you're there for</label>
+      <input id="p-role" placeholder="Exploring real-world problems in fintech ops">
+      <button class="btn" id="save-profile">Save & generate QR</button>
+      <div id="qrbox"></div>
+      <p class="hint">Someone scans this with their phone camera — it opens this app with your details already filled in, ready for them to save you as a connection.</p>
+    </div>
+  </section>
+
+  <section id="view-add" class="view">
+    <div class="card">
+      <label>Their name</label>
+      <input id="a-name">
+      <label>Company</label>
+      <input id="a-company">
+      <label>Why you met / what to follow up on</label>
+      <textarea id="a-reason" placeholder="Talked about their payments infra pain point — said to check back after SIBOS"></textarea>
+      <label>Follow up in</label>
+      <select id="a-days">
+        <option value="1">1 day</option>
+        <option value="2" selected>2 days</option>
+        <option value="4">4 days</option>
+        <option value="7">1 week</option>
+      </select>
+      <button class="btn" id="save-conn">Save connection</button>
+    </div>
+  </section>
+
+  <section id="view-list" class="view">
+    <div class="simbar">
+      <p class="hint">Reminders trigger for real once the follow-up date arrives.</p>
+      <button class="btn ghost" id="sim-day" style="width:auto; white-space:nowrap;">Skip ahead a day</button>
+    </div>
+    <div id="conn-list"></div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=(s,el=document)=>el.querySelector(s);
+const $all=(s,el=document)=>[...el.querySelectorAll(s)];
+const qs=new URLSearchParams(location.search);
+
+// ---- nav ----
+$all('nav button').forEach(b=>b.addEventListener('click',()=>{
+  $all('nav button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  $all('.view').forEach(v=>v.classList.remove('active'));
+  $('#view-'+b.dataset.view).classList.add('active');
+  if(b.dataset.view==='list') renderList();
+}));
+
+function toast(msg){
+  const t=$('#toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),1800);
+}
+
+// ---- "today" (simulatable) ----
+function today(){ return parseInt(localStorage.getItem('rc_today')||Date.now()); }
+$('#sim-day').addEventListener('click',()=>{
+  const t = today() + 86400000;
+  localStorage.setItem('rc_today', t);
+  toast('Fast-forwarded 1 day');
+  renderList();
+});
+
+// ---- profile / QR ----
+function loadProfile(){
+  const p = JSON.parse(localStorage.getItem('rc_profile')||'{}');
+  $('#p-name').value = qs.get('name') ? '' : (p.name||'');
+  $('#p-company').value = p.company||'';
+  $('#p-role').value = p.role||'';
+  if(p.name) drawQR(p);
+}
+function drawQR(p){
+  $('#qrbox').innerHTML='';
+  const base = location.origin + location.pathname;
+  const url = base + '?name=' + encodeURIComponent(p.name) +
+              '&company=' + encodeURIComponent(p.company||'') +
+              '&role=' + encodeURIComponent(p.role||'');
+  new QRCode($('#qrbox'), {text:url, width:180, height:180, colorDark:'#0E1A2B', colorLight:'#ffffff'});
+}
+$('#save-profile').addEventListener('click',()=>{
+  const p={name:$('#p-name').value.trim(),company:$('#p-company').value.trim(),role:$('#p-role').value.trim()};
+  if(!p.name){toast('Add your name first');return;}
+  localStorage.setItem('rc_profile', JSON.stringify(p));
+  drawQR(p);
+  toast('Saved. QR updated.');
+});
+loadProfile();
+
+// ---- incoming scan -> prefill Add ----
+if(qs.get('name')){
+  $all('nav button').forEach(x=>x.classList.remove('active'));
+  $('nav button[data-view="add"]').classList.add('active');
+  $all('.view').forEach(v=>v.classList.remove('active'));
+  $('#view-add').classList.add('active');
+  $('#a-name').value = qs.get('name')||'';
+  $('#a-company').value = qs.get('company')||'';
+  const role = qs.get('role');
+  if(role) $('#a-reason').value = 'Met at SIBOS — ' + role;
+}
+
+// ---- connections ----
+function getConns(){ return JSON.parse(localStorage.getItem('rc_conns')||'[]'); }
+function setConns(c){ localStorage.setItem('rc_conns', JSON.stringify(c)); }
+let editingId=null;
+
+function resetAddForm(){
+  $('#a-name').value=''; $('#a-company').value=''; $('#a-reason').value=''; $('#a-days').value='2';
+  editingId=null;
+  $('#save-conn').textContent='Save connection';
+}
+
+$('#save-conn').addEventListener('click',()=>{
+  const name=$('#a-name').value.trim();
+  if(!name){toast('Add their name first');return;}
+  const days=parseInt($('#a-days').value);
+  const conns=getConns();
+  if(editingId){
+    const c=conns.find(c=>String(c.id)===String(editingId));
+    c.name=name; c.company=$('#a-company').value.trim(); c.reason=$('#a-reason').value.trim();
+    c.dueAt = today() + days*86400000;
+    toast('Connection updated');
+  } else {
+    conns.push({
+      id: Date.now()+'-'+Math.floor(Math.random()*100000),
+      name, company:$('#a-company').value.trim(),
+      reason:$('#a-reason').value.trim(),
+      savedAt: today(),
+      dueAt: today() + days*86400000,
+      status: 'active'
+    });
+    toast('Connection saved');
+  }
+  setConns(conns);
+  resetAddForm();
+  history.replaceState(null,'',location.pathname);
+  $all('nav button').forEach(x=>x.classList.remove('active'));
+  $('nav button[data-view="list"]').classList.add('active');
+  $all('.view').forEach(v=>v.classList.remove('active'));
+  $('#view-list').classList.add('active');
+  renderList();
+});
+
+function editConn(id){
+  const c=getConns().find(c=>String(c.id)===String(id));
+  if(!c) return;
+  editingId=id;
+  $('#a-name').value=c.name; $('#a-company').value=c.company||''; $('#a-reason').value=c.reason||'';
+  $('#save-conn').textContent='Update connection';
+  $all('nav button').forEach(x=>x.classList.remove('active'));
+  $('nav button[data-view="add"]').classList.add('active');
+  $all('.view').forEach(v=>v.classList.remove('active'));
+  $('#view-add').classList.add('active');
+}
+
+function markDone(id){
+  const conns=getConns();
+  const c=conns.find(c=>String(c.id)===String(id));
+  if(c){ c.status = c.status==='done' ? 'active' : 'done'; setConns(conns); renderList(); }
+}
+
+function fmtDue(dueAt){
+  const diff = Math.round((dueAt - today())/86400000);
+  if(diff<=0) return {label: diff<0 ? 'Overdue' : 'Due today', cls:'due'};
+  if(diff===1) return {label:'Tomorrow', cls:'soon'};
+  return {label:'In '+diff+' days', cls:'later'};
+}
+
+// ---- real calendar reminder (.ics with alarm) ----
+async function addToCalendar(id){
+  const c=getConns().find(c=>String(c.id)===String(id));
+  if(!c) return;
+  const dt=new Date(c.dueAt);
+  const stamp=d=>d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+  const start=stamp(dt);
+  const end=stamp(new Date(dt.getTime()+30*60000));
+  const desc=(c.reason||'Follow up from SIBOS').replace(/\n/g,'\\n');
+  const ics=[
+    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Reconnect//EN','BEGIN:VEVENT',
+    'UID:'+c.id+'@reconnect', 'DTSTAMP:'+stamp(new Date()),
+    'DTSTART:'+start, 'DTEND:'+end,
+    'SUMMARY:Follow up with '+c.name+(c.company?(' — '+c.company):''),
+    'DESCRIPTION:'+desc,
+    'BEGIN:VALARM','TRIGGER:-PT0M','ACTION:DISPLAY','DESCRIPTION:Follow up reminder','END:VALARM',
+    'END:VEVENT','END:VCALENDAR'
+  ].join('\r\n');
+  const filename='followup-'+c.name.replace(/\s+/g,'-')+'.ics';
+  let saved=false;
+  try{
+    if(window.claude && window.claude.use){
+      const dl = await window.claude.use('downloads');
+      if(dl){ await dl.save({filename, data: ics}); saved=true; }
+    }
+  }catch(e){}
+  if(!saved){
+    try{
+      const blob=new Blob([ics],{type:'text/calendar'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download=filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      saved=true;
+    }catch(e){}
+  }
+  toast(saved ? 'Calendar reminder saved' : "Couldn't save — try opening this in your browser, not embedded");
+}
+
+function renderList(){
+  const list=$('#conn-list');
+  const all=getConns();
+  if(!all.length){ list.innerHTML='<p class="empty">No connections yet — scan a card or add one manually.</p>'; return; }
+  const active=all.filter(c=>c.status!=='done').sort((a,b)=>a.dueAt-b.dueAt);
+  const done=all.filter(c=>c.status==='done').sort((a,b)=>b.dueAt-a.dueAt);
+  const card=c=>{
+    const d=fmtDue(c.dueAt);
+    const isDone=c.status==='done';
+    return `<div class="conn ${isDone?'done':''}">
+      <div class="conn-top">
+        <div><div class="conn-name">${esc(c.name)}</div><div class="conn-co">${esc(c.company||'')}</div></div>
+        <span class="pill ${isDone?'done':d.cls}">${isDone?'Followed up':d.label}</span>
+      </div>
+      ${c.reason?`<div class="conn-reason">${esc(c.reason)}</div>`:''}
+      <div class="conn-actions">
+        <button class="primary" onclick="draftMsg('${c.id}')">Draft message</button>
+        <button onclick="addToCalendar('${c.id}')">Remind me</button>
+      </div>
+      <div class="conn-actions">
+        <button onclick="editConn('${c.id}')">Edit</button>
+        <button onclick="markDone('${c.id}')">${isDone?'Mark active':'Mark followed up'}</button>
+        <button onclick="removeConn('${c.id}')">Remove</button>
+      </div>
+      <div class="draft" id="draft-${c.id}" style="display:none;"></div>
+    </div>`;
+  };
+  let html='';
+  if(active.length){ html += '<p class="section-label">Active</p>' + active.map(card).join(''); }
+  if(done.length){ html += '<p class="section-label">Followed up</p>' + done.map(card).join(''); }
+  list.innerHTML = html;
+}
+function esc(s){return (s||'').replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));}
+function removeConn(id){
+  setConns(getConns().filter(c=>String(c.id)!==String(id)));
+  renderList();
+}
+function draftMsg(id){
+  const c=getConns().find(c=>String(c.id)===String(id));
+  const box=$('#draft-'+CSS.escape(String(id)));
+  if(box.style.display==='block'){box.style.display='none';return;}
+  const msg=`Hi ${c.name.split(' ')[0]}, great meeting you at SIBOS` +
+    (c.company?` — enjoyed hearing about ${c.company}.`:'.') +
+    (c.reason?` You mentioned: "${c.reason}." `:' ') +
+    `Would love to continue the conversation when you have a few minutes.`;
+  box.textContent = msg;
+  box.style.display='block';
+  navigator.clipboard && navigator.clipboard.writeText(msg).then(()=>toast('Draft copied'));
+}
+renderList();
+</script>
+</body>
+</html>
