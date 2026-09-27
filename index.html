@@ -115,6 +115,10 @@ textarea{resize:vertical; min-height:64px;}
       <input id="p-company" placeholder="CCNY — Computer Science">
       <label>What you're there for</label>
       <input id="p-role" placeholder="Exploring real-world problems in fintech ops">
+      <label>Email</label>
+      <input id="p-email" type="email" placeholder="you@school.edu">
+      <label>LinkedIn URL</label>
+      <input id="p-linkedin" placeholder="linkedin.com/in/you">
       <button class="btn" id="save-profile">Save & generate QR</button>
       <div id="qrbox"></div>
       <p class="hint">Someone scans this with their phone camera — it opens this app with your details already filled in, ready for them to save you as a connection.</p>
@@ -127,15 +131,27 @@ textarea{resize:vertical; min-height:64px;}
       <input id="a-name">
       <label>Company</label>
       <input id="a-company">
-      <label>Why you met / what to follow up on</label>
-      <textarea id="a-reason" placeholder="Talked about their payments infra pain point — said to check back after SIBOS"></textarea>
-      <label>Follow up in</label>
+      <label>Where you met</label>
+      <input id="a-event" placeholder="SIBOS 2026">
+      <label>Talked about</label>
+      <input id="a-talked" placeholder="AI + NYC internships">
+      <label>Follow up</label>
+      <input id="a-followup" placeholder="Send her the research paper">
+      <label>Remind me in</label>
       <select id="a-days">
         <option value="1">1 day</option>
         <option value="2" selected>2 days</option>
         <option value="4">4 days</option>
         <option value="7">1 week</option>
       </select>
+      <label>Best way to reach them</label>
+      <select id="a-channel">
+        <option value="Email">Email</option>
+        <option value="LinkedIn">LinkedIn</option>
+        <option value="Instagram">Instagram</option>
+      </select>
+      <label>Their email / LinkedIn URL / @handle</label>
+      <input id="a-contact" placeholder="depends on channel above">
       <button class="btn" id="save-conn">Save connection</button>
     </div>
   </section>
@@ -184,6 +200,8 @@ function loadProfile(){
   $('#p-name').value = qs.get('name') ? '' : (p.name||'');
   $('#p-company').value = p.company||'';
   $('#p-role').value = p.role||'';
+  $('#p-email').value = p.email||'';
+  $('#p-linkedin').value = p.linkedin||'';
   if(p.name) drawQR(p);
 }
 function drawQR(p){
@@ -191,11 +209,14 @@ function drawQR(p){
   const base = location.origin + location.pathname;
   const url = base + '?name=' + encodeURIComponent(p.name) +
               '&company=' + encodeURIComponent(p.company||'') +
-              '&role=' + encodeURIComponent(p.role||'');
+              '&role=' + encodeURIComponent(p.role||'') +
+              '&email=' + encodeURIComponent(p.email||'') +
+              '&linkedin=' + encodeURIComponent(p.linkedin||'');
   new QRCode($('#qrbox'), {text:url, width:180, height:180, colorDark:'#0E1A2B', colorLight:'#ffffff'});
 }
 $('#save-profile').addEventListener('click',()=>{
-  const p={name:$('#p-name').value.trim(),company:$('#p-company').value.trim(),role:$('#p-role').value.trim()};
+  const p={name:$('#p-name').value.trim(),company:$('#p-company').value.trim(),role:$('#p-role').value.trim(),
+           email:$('#p-email').value.trim(),linkedin:$('#p-linkedin').value.trim()};
   if(!p.name){toast('Add your name first');return;}
   localStorage.setItem('rc_profile', JSON.stringify(p));
   drawQR(p);
@@ -211,8 +232,9 @@ if(qs.get('name')){
   $('#view-add').classList.add('active');
   $('#a-name').value = qs.get('name')||'';
   $('#a-company').value = qs.get('company')||'';
-  const role = qs.get('role');
-  if(role) $('#a-reason').value = 'Met at SIBOS — ' + role;
+  const email = qs.get('email'), linkedin = qs.get('linkedin');
+  if(linkedin){ $('#a-channel').value='LinkedIn'; $('#a-contact').value=linkedin; }
+  else if(email){ $('#a-channel').value='Email'; $('#a-contact').value=email; }
 }
 
 // ---- connections ----
@@ -221,7 +243,9 @@ function setConns(c){ localStorage.setItem('rc_conns', JSON.stringify(c)); }
 let editingId=null;
 
 function resetAddForm(){
-  $('#a-name').value=''; $('#a-company').value=''; $('#a-reason').value=''; $('#a-days').value='2';
+  $('#a-name').value=''; $('#a-company').value=''; $('#a-event').value='';
+  $('#a-talked').value=''; $('#a-followup').value=''; $('#a-days').value='2';
+  $('#a-channel').value='Email'; $('#a-contact').value='';
   editingId=null;
   $('#save-conn').textContent='Save connection';
 }
@@ -231,20 +255,24 @@ $('#save-conn').addEventListener('click',()=>{
   if(!name){toast('Add their name first');return;}
   const days=parseInt($('#a-days').value);
   const conns=getConns();
+  const fields={
+    name, company:$('#a-company').value.trim(),
+    event:$('#a-event').value.trim(), talked:$('#a-talked').value.trim(),
+    followup:$('#a-followup').value.trim(), channel:$('#a-channel').value,
+    contact:$('#a-contact').value.trim()
+  };
   if(editingId){
     const c=conns.find(c=>String(c.id)===String(editingId));
-    c.name=name; c.company=$('#a-company').value.trim(); c.reason=$('#a-reason').value.trim();
+    Object.assign(c, fields);
     c.dueAt = today() + days*86400000;
     toast('Connection updated');
   } else {
-    conns.push({
+    conns.push(Object.assign({
       id: Date.now()+'-'+Math.floor(Math.random()*100000),
-      name, company:$('#a-company').value.trim(),
-      reason:$('#a-reason').value.trim(),
       savedAt: today(),
       dueAt: today() + days*86400000,
       status: 'active'
-    });
+    }, fields));
     toast('Connection saved');
   }
   setConns(conns);
@@ -261,7 +289,10 @@ function editConn(id){
   const c=getConns().find(c=>String(c.id)===String(id));
   if(!c) return;
   editingId=id;
-  $('#a-name').value=c.name; $('#a-company').value=c.company||''; $('#a-reason').value=c.reason||'';
+  $('#a-name').value=c.name; $('#a-company').value=c.company||'';
+  $('#a-event').value=c.event||''; $('#a-talked').value=c.talked||'';
+  $('#a-followup').value=c.followup||''; $('#a-channel').value=c.channel||'Email';
+  $('#a-contact').value=c.contact||'';
   $('#save-conn').textContent='Update connection';
   $all('nav button').forEach(x=>x.classList.remove('active'));
   $('nav button[data-view="add"]').classList.add('active');
@@ -331,12 +362,13 @@ function renderList(){
     const isDone=c.status==='done';
     return `<div class="conn ${isDone?'done':''}">
       <div class="conn-top">
-        <div><div class="conn-name">${esc(c.name)}</div><div class="conn-co">${esc(c.company||'')}</div></div>
+        <div><div class="conn-name">${esc(c.name)}</div><div class="conn-co">${esc(c.company||'')}${c.event?' · '+esc(c.event):''}</div></div>
         <span class="pill ${isDone?'done':d.cls}">${isDone?'Followed up':d.label}</span>
       </div>
-      ${c.reason?`<div class="conn-reason">${esc(c.reason)}</div>`:''}
+      ${c.talked?`<div class="conn-reason"><strong>Talked about:</strong> ${esc(c.talked)}</div>`:''}
+      ${c.followup?`<div class="conn-reason"><strong>Follow up:</strong> ${esc(c.followup)}</div>`:''}
       <div class="conn-actions">
-        <button class="primary" onclick="draftMsg('${c.id}')">Draft message</button>
+        <button class="primary" onclick="draftMsg('${c.id}')">Draft &amp; send via ${esc(c.channel||'Email')}</button>
         <button onclick="addToCalendar('${c.id}')">Remind me</button>
       </div>
       <div class="conn-actions">
@@ -359,15 +391,26 @@ function removeConn(id){
 }
 function draftMsg(id){
   const c=getConns().find(c=>String(c.id)===String(id));
-  const box=$('#draft-'+CSS.escape(String(id)));
-  if(box.style.display==='block'){box.style.display='none';return;}
-  const msg=`Hi ${c.name.split(' ')[0]}, great meeting you at SIBOS` +
+  const boxId='#draft-'+CSS.escape(String(id));
+  const box=$(boxId);
+  const msg=`Hi ${c.name.split(' ')[0]}, great meeting you`+(c.event?` at ${c.event}`:'')+
     (c.company?` — enjoyed hearing about ${c.company}.`:'.') +
-    (c.reason?` You mentioned: "${c.reason}." `:' ') +
-    `Would love to continue the conversation when you have a few minutes.`;
-  box.textContent = msg;
+    (c.talked?` We talked about ${c.talked}.`:'') +
+    (c.followup?` ${c.followup}.`:' Would love to continue the conversation when you have a few minutes.');
+  const channel=c.channel||'Email', contact=(c.contact||'').trim();
+  let actionHtml='';
+  if(channel==='Email' && contact){
+    const mailto='mailto:'+encodeURIComponent(contact)+'?subject='+encodeURIComponent('Following up — great meeting you'+(c.event?(' at '+c.event):''))+'&body='+encodeURIComponent(msg);
+    actionHtml=`<a class="btn secondary" style="margin-top:8px; text-align:center; display:block; text-decoration:none;" href="${mailto}">Open email to send</a>`;
+  } else if((channel==='LinkedIn'||channel==='Instagram') && contact){
+    const link = contact.startsWith('http') ? contact : (channel==='Instagram' ? 'https://instagram.com/'+contact.replace('@','') : 'https://'+contact.replace(/^https?:\/\//,''));
+    actionHtml=`<a class="btn secondary" style="margin-top:8px; text-align:center; display:block; text-decoration:none;" href="${esc(link)}" target="_blank" rel="noopener">Open their ${channel} to paste this</a>`;
+  } else {
+    actionHtml=`<p class="hint" style="margin-top:8px;">No contact saved — edit this connection to add an email, LinkedIn URL, or handle.</p>`;
+  }
+  box.innerHTML = `<div>${esc(msg)}</div>${actionHtml}`;
   box.style.display='block';
-  navigator.clipboard && navigator.clipboard.writeText(msg).then(()=>toast('Draft copied'));
+  navigator.clipboard && navigator.clipboard.writeText(msg).then(()=>toast('Draft copied — ready to paste'));
 }
 renderList();
 </script>
